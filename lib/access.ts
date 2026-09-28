@@ -1,0 +1,12 @@
+import {createHmac,createHash,timingSafeEqual} from 'node:crypto';
+import {cookies} from 'next/headers';
+import {sqlite} from './lab-store';
+function secret(){const s=process.env.SESSION_SECRET;if(!s||s.length<32)throw new Error('Set SESSION_SECRET to at least 32 characters.');return s}
+function sign(s:string){return createHmac('sha256',secret()).update(s).digest('base64url')}
+export function equal(a:string,b:string){return timingSafeEqual(createHash('sha256').update(a).digest(),createHash('sha256').update(b).digest())}
+export function groupToken(id:string){return id+'.'+sign('group:'+id)}
+export function verifyGroup(token:string){const [id,sig,...extra]=token.split('.');if(!id||!sig||extra.length||!equal(sig,sign('group:'+id)))return null;return sqlite().prepare('SELECT id FROM lab_groups WHERE id=?').get(id)?id:null}
+export async function setSession(id:string){const value=Buffer.from(JSON.stringify({id,expires:Date.now()+14*86400000})).toString('base64url');(await cookies()).set('lab_session',value+'.'+sign('session:'+value),{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:14*86400})}
+export async function user(){const v=(await cookies()).get('lab_session')?.value;if(!v)return null;try{const [payload,sig]=v.split('.');if(!sig||!equal(sig,sign('session:'+payload)))return null;const p=JSON.parse(Buffer.from(payload,'base64url').toString());if(typeof p.id!=='string'||p.expires<Date.now())return null;if(p.id!=='instructor'&&!sqlite().prepare('SELECT id FROM lab_groups WHERE id=?').get(p.id))return null;return {userId:p.id,email:p.id==='instructor'?'instructor@local':'group@local'}}catch{return null}}
+export function sameOrigin(req:Request){const origin=req.headers.get('origin');if(!origin)return false;const expected=process.env.APP_URL?.replace(/\/$/,'');if(expected)return origin===expected;const host=req.headers.get('host');try{const u=new URL(origin);return u.host===host&&(u.protocol==='https:'||process.env.NODE_ENV!=='production')}catch{return false}}
+export function throttle(req:Request){const ip=req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown';const key=createHash('sha256').update(ip).digest('hex');const now=Date.now();sqlite().prepare('DELETE FROM attempts WHERE expires < ?').run(now);sqlite().prepare('INSERT INTO attempts(id,n,expires) VALUES(?,1,?) ON CONFLICT(id) DO UPDATE SET n=n+1').run(key,now+600000);return (sqlite().prepare('SELECT n FROM attempts WHERE id=?').get(key) as {n:number}).n<=30}
