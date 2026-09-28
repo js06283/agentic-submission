@@ -1,7 +1,8 @@
 import {DatabaseSync,type SQLInputValue} from 'node:sqlite';
 import {mkdirSync} from 'node:fs';
 import {join} from 'node:path';
-const schema = `CREATE TABLE IF NOT EXISTS gallery_settings(id INTEGER PRIMARY KEY,revealed INTEGER NOT NULL DEFAULT 0);
+const schema = `CREATE TABLE IF NOT EXISTS gallery_reflections(group_id TEXT PRIMARY KEY REFERENCES lab_groups(id),reflection TEXT NOT NULL,updated TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS gallery_settings(id INTEGER PRIMARY KEY,revealed INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS gallery_entries(group_id TEXT PRIMARY KEY REFERENCES lab_groups(id),tool TEXT NOT NULL,explanation TEXT NOT NULL,link TEXT NOT NULL DEFAULT '',action1 TEXT NOT NULL,output1 TEXT NOT NULL,action2 TEXT NOT NULL,output2 TEXT NOT NULL,updated TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS lab_session(id INTEGER PRIMARY KEY,phase INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS lab_groups(id TEXT PRIMARY KEY,owner TEXT UNIQUE NOT NULL,name TEXT UNIQUE NOT NULL,design TEXT NOT NULL,reflection TEXT NOT NULL DEFAULT '',updated TEXT NOT NULL);
